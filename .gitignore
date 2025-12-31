@@ -23,3 +23,8 @@ Thumbs.db
 *.bin
 *.elf
 *.map
+
+# Clang-tidy
+.clang-tidy-*
+compile_commands.json
+*.fixes.yaml

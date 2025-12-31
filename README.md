@@ -10,6 +10,7 @@ A completely bare metal LED blink program for ESP32-C3 using direct register acc
 - **Flash Memory Testing** - Comprehensive test of 16MB flash with write/read/verify
 - **LED Status Patterns** - Visual feedback for test results
 - **Custom Partition Table** - 15MB storage partition for testing
+- **Code Quality Tooling** - Clang-tidy integration for static analysis
 - **Hardware-Level Control** - Direct memory-mapped I/O
 - VSCode ESP-IDF extension support for building
 
@@ -38,10 +39,14 @@ esp32c3-bare-metal/
 ├── .vscode/
 │   ├── settings.json       # VSCode ESP-IDF settings
 │   ├── c_cpp_properties.json
-│   └── launch.json         # Debug configuration
+│   ├── launch.json         # Debug configuration
+│   └── tasks.json          # Build and clang-tidy tasks
 ├── CMakeLists.txt          # Root project configuration
 ├── sdkconfig.defaults      # ESP32-C3 configuration with 16MB flash
 ├── partitions.csv          # Custom partition table (1MB app + 15MB storage)
+├── .clang-tidy             # Clang-tidy configuration
+├── run-clang-tidy.sh       # Script to run clang-tidy
+├── generate-compile-db.sh  # Generate compilation database
 ├── .gitignore
 └── README.md
 ```
@@ -197,6 +202,85 @@ ESP32-C3 GPIO Registers (from memory map at 0x60004000):
 - **0x60004554**: GPIO_FUNCx_OUT_SEL_CFG - Function selection
 
 See [ESP32-C3 TRM Chapter 5](https://www.espressif.com/sites/default/files/documentation/esp32-c3_technical_reference_manual_en.pdf) for complete register documentation.
+
+## Code Quality: Clang-Tidy
+
+This project includes clang-tidy configuration for static code analysis. Clang-tidy helps catch bugs, enforce coding standards, and improve code quality.
+
+### Prerequisites
+
+Install clang-tidy:
+```bash
+# Debian/Ubuntu
+sudo apt-get install clang-tidy
+
+# macOS
+brew install llvm
+```
+
+### Running Clang-Tidy
+
+#### Method 1: Command Line
+
+**Check for issues (no modifications):**
+```bash
+./run-clang-tidy.sh
+```
+
+**Auto-fix issues:**
+```bash
+./run-clang-tidy.sh --fix
+```
+
+**Generate compilation database manually:**
+```bash
+./generate-compile-db.sh
+```
+
+#### Method 2: VSCode Tasks
+
+Press `Ctrl+Shift+P` (or `Cmd+Shift+P` on macOS) and select:
+- **Tasks: Run Task** → **Run Clang-Tidy (Check Only)** - Analyze without changes
+- **Tasks: Run Task** → **Run Clang-Tidy (Auto-Fix)** - Analyze and apply fixes
+- **Tasks: Run Task** → **Generate Compile Database** - Regenerate compilation database
+
+#### Method 3: Direct clang-tidy Command
+
+```bash
+# After building the project
+clang-tidy -p build/compile_commands.json main/main.c
+```
+
+### Clang-Tidy Configuration
+
+The `.clang-tidy` file includes checks for:
+- **Bug detection**: Potential bugs and logic errors
+- **Performance**: Performance anti-patterns
+- **Readability**: Code clarity and maintainability
+- **Modernization**: Modern C practices
+- **Portability**: Cross-platform compatibility
+
+Disabled checks:
+- Magic numbers (common in embedded register programming)
+- Non-const globals (necessary for hardware access)
+- Some readability checks that conflict with embedded conventions
+
+### Customizing Checks
+
+Edit `.clang-tidy` to enable/disable specific checks:
+
+```yaml
+Checks: >
+  -*,
+  bugprone-*,
+  performance-*,
+  readability-*
+```
+
+Add your custom check disables after existing ones:
+```yaml
+  -readability-your-check-name
+```
 
 ## Troubleshooting
 
