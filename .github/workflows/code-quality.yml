@@ -18,48 +18,70 @@ jobs:
         with:
           submodules: 'recursive'
 
-      - name: Install clang-tidy
+      - name: Cache ESP-IDF
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/esp/esp-idf
+            ~/.espressif
+          key: ${{ runner.os }}-esp-idf-v5.1.2-esp32c3-${{ hashFiles('sdkconfig.defaults') }}
+          restore-keys: |
+            ${{ runner.os }}-esp-idf-v5.1.2-esp32c3-
+            ${{ runner.os }}-esp-idf-v5.1.2-
+
+      - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-tidy
+          sudo apt-get install -y clang-tidy git wget flex bison gperf python3 python3-pip python3-venv cmake ninja-build ccache libffi-dev libssl-dev dfu-util libusb-1.0-0
 
       - name: Set up ESP-IDF
-        uses: espressif/esp-idf-ci-action@v1
-        with:
-          esp_idf_version: v5.1.2
-          target: esp32c3
-          path: '.'
+        run: |
+          mkdir -p ~/esp
+          cd ~/esp
+          if [ ! -d "esp-idf" ]; then
+            git clone --recursive --branch v5.1.2 https://github.com/espressif/esp-idf.git
+          fi
+          cd esp-idf
+          ./install.sh esp32c3
 
       - name: Build project (generate compile_commands.json)
         run: |
-          . $IDF_PATH/export.sh
+          . ~/esp/esp-idf/export.sh
           idf.py set-target esp32c3
           idf.py build
 
       - name: Run clang-tidy
         run: |
-          . $IDF_PATH/export.sh
+          . ~/esp/esp-idf/export.sh
           chmod +x run-clang-tidy.sh
-          ./run-clang-tidy.sh 2>&1 | tee clang-tidy-output.txt
+          ./run-clang-tidy.sh 2>&1 | tee clang-tidy-output.txt || echo "Clang-tidy completed with warnings/errors"
         continue-on-error: true
 
       - name: Upload clang-tidy results
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: clang-tidy-results
           path: clang-tidy-output.txt
           retention-days: 30
+          if-no-files-found: warn
 
       - name: Check for clang-tidy warnings
+        if: always()
         run: |
-          if grep -q "warning:" clang-tidy-output.txt; then
-            echo "::warning::Clang-tidy found warnings in the code"
-            echo "### ⚠️ Clang-Tidy Warnings Found" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Please review the clang-tidy-results artifact for details." >> $GITHUB_STEP_SUMMARY
+          if [ -f clang-tidy-output.txt ]; then
+            if grep -q "warning:" clang-tidy-output.txt; then
+              echo "::warning::Clang-tidy found warnings in the code"
+              echo "### ⚠️ Clang-Tidy Warnings Found" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "Please review the clang-tidy-results artifact for details." >> $GITHUB_STEP_SUMMARY
+            else
+              echo "✅ No clang-tidy warnings found"
+              echo "### ✅ Clang-Tidy: No Issues Found" >> $GITHUB_STEP_SUMMARY
+            fi
           else
-            echo "✅ No clang-tidy warnings found"
-            echo "### ✅ Clang-Tidy: No Issues Found" >> $GITHUB_STEP_SUMMARY
+            echo "::error::Clang-tidy output file not found"
+            echo "### ❌ Clang-Tidy Failed" >> $GITHUB_STEP_SUMMARY
           fi
 
   formatting-check:
@@ -69,6 +91,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - name: Check file permissions
         run: |
@@ -84,10 +108,12 @@ jobs:
 
       - name: Check for trailing whitespace
         run: |
-          if git diff --check HEAD^ HEAD; then
+          # Fetch more history for git diff
+          git fetch --depth=2
+          if git diff --check HEAD^ HEAD 2>/dev/null; then
             echo "✅ No trailing whitespace found"
           else
-            echo "::warning::Trailing whitespace detected"
+            echo "::warning::Trailing whitespace detected or unable to check"
           fi
         continue-on-error: true
 
