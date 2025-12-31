@@ -7,7 +7,9 @@ A completely bare metal LED blink program for ESP32-C3 using direct register acc
 - **TRUE Bare Metal** - No FreeRTOS task APIs used
 - **Direct Register Access** - GPIO manipulation via hardware registers
 - **Custom Delay Functions** - CPU cycle counting instead of OS delays
-- **Minimal Code Size** - Optimized configuration with disabled logging
+- **Flash Memory Testing** - Comprehensive test of 16MB flash with write/read/verify
+- **LED Status Patterns** - Visual feedback for test results
+- **Custom Partition Table** - 15MB storage partition for testing
 - **Hardware-Level Control** - Direct memory-mapped I/O
 - VSCode ESP-IDF extension support for building
 
@@ -31,14 +33,15 @@ A completely bare metal LED blink program for ESP32-C3 using direct register acc
 ```
 esp32c3-bare-metal/
 ├── main/
-│   ├── main.c              # Bare metal code with direct register access
+│   ├── main.c              # Bare metal code with flash testing
 │   └── CMakeLists.txt      # Component build configuration
 ├── .vscode/
 │   ├── settings.json       # VSCode ESP-IDF settings
 │   ├── c_cpp_properties.json
 │   └── launch.json         # Debug configuration
 ├── CMakeLists.txt          # Root project configuration
-├── sdkconfig.defaults      # Minimal ESP32-C3 configuration
+├── sdkconfig.defaults      # ESP32-C3 configuration with 16MB flash
+├── partitions.csv          # Custom partition table (1MB app + 15MB storage)
 ├── .gitignore
 └── README.md
 ```
@@ -89,6 +92,14 @@ Edit the `LED_GPIO` definition in `main/main.c`:
 
 Supported GPIO pins on ESP32-C3: 0-21 (avoid pins used for flash/USB)
 
+### Disabling Flash Test
+
+To disable the flash memory test and reduce code size, edit `main/main.c`:
+
+```c
+#define FLASH_TEST_ENABLED      0  // Change from 1 to 0
+```
+
 ## Code Explanation
 
 This program demonstrates **TRUE bare metal programming** without FreeRTOS APIs:
@@ -113,17 +124,59 @@ This program demonstrates **TRUE bare metal programming** without FreeRTOS APIs:
 - No semaphores, queues, or other RTOS primitives
 - Minimal runtime overhead
 
+### Flash Memory Testing
+
+The program includes comprehensive flash memory testing:
+
+1. **test_flash_block()** - Erases, writes, reads, and verifies flash blocks
+2. **test_flash_memory()** - Tests all available flash outside the program area
+3. **LED Blink Patterns** - Visual feedback during testing:
+   - Quick double blink: Testing in progress
+   - 5 fast blinks: Test passed
+   - 3 slow blinks: Test failed
+
+The flash test:
+- Detects total flash size (16MB on your board)
+- Finds storage partition or tests upper half of flash
+- Tests up to 100 blocks (4KB each) with alternating 0xAA/0x55 pattern
+- Reports results via serial output
+- Runs once on startup, then continues with LED blink loop
+
+## Partition Table
+
+Custom partition table for 16MB flash (`partitions.csv`):
+
+| Partition | Type | SubType | Offset | Size | Purpose |
+|-----------|------|---------|--------|------|---------|
+| nvs | data | nvs | 0x9000 | 16KB | Non-volatile storage |
+| phy_init | data | phy | 0xd000 | 4KB | PHY init data |
+| factory | app | factory | 0x10000 | 1MB | Application firmware |
+| storage | data | spiffs | 0x110000 | 15MB | Storage (used for flash testing) |
+
+The 15MB storage partition provides ample space for flash testing without affecting the program.
+
 ## Serial Monitor Output
 
-Since logging is disabled for minimal code size, there is **no serial output**. The LED will simply blink on GPIO8:
+With logging enabled, you'll see flash test results on startup:
+
+```
+I (xxx) flash-test: Starting flash memory test...
+I (xxx) flash-test: This will test flash memory outside program area
+I (xxx) flash-test: Flash size: 16777216 bytes (16.00 MB)
+I (xxx) flash-test: Found storage partition at 0x110000, size: 15728640 bytes
+I (xxx) flash-test: Tested 100 blocks, stopping test
+I (xxx) flash-test: === Flash Test Results ===
+I (xxx) flash-test: Total flash size: 16777216 bytes
+I (xxx) flash-test: Tested data: 25600 bytes
+I (xxx) flash-test: Blocks tested: 100
+I (xxx) flash-test: Errors: 0
+I (xxx) flash-test: Flash test PASSED!
+```
+
+After the test completes, LED blinks normally:
 - **ON** for 1 second
 - **OFF** for 1 second
 - Repeats indefinitely
-
-To enable debug output, modify `sdkconfig.defaults`:
-```
-CONFIG_LOG_DEFAULT_LEVEL_INFO=y  # Change from NONE to INFO
-```
 
 ## Why ESP-IDF if it's Bare Metal?
 
