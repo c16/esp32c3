@@ -1,0 +1,20 @@
+{
+    "idf.adapterTargetName": "esp32c3",
+    "idf.customExtraPaths": "",
+    "idf.customExtraVars": "",
+    "idf.flashType": "UART",
+    "idf.openOcdConfigs": [
+        "board/esp32c3-builtin.cfg"
+    ],
+    "idf.portWin": "",
+    "idf.pythonBinPath": "python",
+    "idf.toolsPath": "",
+    "C_Cpp.intelliSenseEngine": "default",
+    "idf.flashBaudRate": "460800",
+    "files.associations": {
+        "*.h": "c",
+        "stdio.h": "c",
+        "gpio.h": "c",
+        "freertos.h": "c"
+    }
+}
