@@ -24,10 +24,10 @@ jobs:
           path: |
             ~/esp/esp-idf
             ~/.espressif
-          key: ${{ runner.os }}-esp-idf-v5.1.2-esp32c3-${{ hashFiles('sdkconfig.defaults') }}
+          key: ${{ runner.os }}-esp-idf-v5.5.1-esp32c3-${{ hashFiles('sdkconfig.defaults') }}
           restore-keys: |
-            ${{ runner.os }}-esp-idf-v5.1.2-esp32c3-
-            ${{ runner.os }}-esp-idf-v5.1.2-
+            ${{ runner.os }}-esp-idf-v5.5.1-esp32c3-
+            ${{ runner.os }}-esp-idf-v5.5.1-
 
       - name: Install ESP-IDF dependencies
         run: |
@@ -39,7 +39,7 @@ jobs:
           mkdir -p ~/esp
           cd ~/esp
           if [ ! -d "esp-idf" ]; then
-            git clone --recursive --branch v5.1.2 https://github.com/espressif/esp-idf.git
+            git clone --recursive --branch v5.5.1 https://github.com/espressif/esp-idf.git
           fi
           cd esp-idf
           ./install.sh esp32c3

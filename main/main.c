@@ -10,31 +10,31 @@
 #include "soc/io_mux_reg.h"
 #include "hal/gpio_ll.h"
 #include "esp_attr.h"
-#include "esp_rom_sys.h"
+#include "esp_cpu.h"
 #include "esp_partition.h"
 #include "esp_flash.h"
 #include "esp_log.h"
+#include "esp_task_wdt.h"
+#include "soc/rtc_cntl_reg.h"
+#include "hal/wdt_hal.h"
 
-/* GPIO pin for LED - ESP32-C3 typically uses GPIO8 for onboard LED */
-#define LED_GPIO    8
+/* GPIO pin for LED */
+#define LED_GPIO    11
 
 /* Flash test configuration */
 #define FLASH_TEST_ENABLED      1
 #define FLASH_TEST_BLOCK_SIZE   4096    /* 4KB blocks */
 #define FLASH_TEST_BUFFER_SIZE  256     /* Test buffer size */
 
-/* GPIO Register Addresses for ESP32-C3 */
-#define GPIO_ENABLE_REG         (0x60004020)
-#define GPIO_OUT_REG            (0x60004004)
-#define GPIO_FUNC_OUT_SEL_CFG   (0x60004554)
+/* GPIO Function Output Select register base (not in standard headers) */
+#define GPIO_FUNC_OUT_SEL_BASE  (0x60004554)
 
 /* Simple bare metal delay function (approximate) */
 static inline void IRAM_ATTR delay_cycles(uint32_t cycles)
 {
-    uint32_t start = esp_rom_get_ccount();
-    uint32_t end = start + cycles;
+    uint32_t start = esp_cpu_get_cycle_count();
 
-    while ((esp_rom_get_ccount() - start) < cycles) {
+    while ((esp_cpu_get_cycle_count() - start) < cycles) {
         __asm__ __volatile__("nop");
     }
 }
@@ -78,10 +78,10 @@ static void gpio_init_output(uint8_t gpio_num)
 {
     /* Enable GPIO output */
     uint32_t enable_val = read_reg(GPIO_ENABLE_REG);
-    write_reg(GPIO_ENABLE_REG, enable_val | (1 << gpio_num));
+    write_reg(GPIO_ENABLE_REG, enable_val | (1U << gpio_num));
 
     /* Configure pin function as GPIO */
-    uint32_t func_addr = GPIO_FUNC_OUT_SEL_CFG + (gpio_num * 4);
+    uint32_t func_addr = GPIO_FUNC_OUT_SEL_BASE + (gpio_num * 4);
     write_reg(func_addr, 0x80);  /* Simple output mode */
 }
 
@@ -276,8 +276,32 @@ static void test_flash_memory(flash_test_result_t *result)
 
 #endif /* FLASH_TEST_ENABLED */
 
+/* Disable all watchdog timers */
+static void disable_all_watchdogs(void)
+{
+    /* Disable Task Watchdog Timer (TWDT) */
+    esp_task_wdt_deinit();
+
+    /* Disable RTC Watchdog Timer using HAL */
+    wdt_hal_context_t rwdt_ctx = RWDT_HAL_CONTEXT_DEFAULT();
+    wdt_hal_write_protect_disable(&rwdt_ctx);
+    wdt_hal_disable(&rwdt_ctx);
+    wdt_hal_write_protect_enable(&rwdt_ctx);
+
+    /* Disable Super Watchdog (SWD) */
+    CLEAR_PERI_REG_MASK(RTC_CNTL_SWD_CONF_REG, RTC_CNTL_SWD_AUTO_FEED_EN);
+    REG_SET_FIELD(RTC_CNTL_SWD_WPROTECT_REG, RTC_CNTL_SWD_WKEY, RTC_CNTL_SWD_WKEY_VALUE);
+    CLEAR_PERI_REG_MASK(RTC_CNTL_SWD_CONF_REG, RTC_CNTL_SWD_SIGNAL_WIDTH);
+    REG_SET_FIELD(RTC_CNTL_SWD_WPROTECT_REG, RTC_CNTL_SWD_WKEY, 0);
+
+    ESP_LOGI("wdt", "All watchdog timers disabled");
+}
+
 void app_main(void)
 {
+    /* Disable all watchdogs first to prevent resets */
+    disable_all_watchdogs();
+
     /* Initialize LED GPIO as output */
     gpio_init_output(LED_GPIO);
 
