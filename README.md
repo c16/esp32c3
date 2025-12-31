@@ -1,19 +1,21 @@
-# ESP32-C3 Bare Metal Program
+# ESP32-C3 TRUE Bare Metal Program
 
-A bare metal LED blink program for ESP32-C3 using ESP-IDF framework in VSCode.
+A completely bare metal LED blink program for ESP32-C3 using direct register access without FreeRTOS.
 
 ## Features
 
-- Direct GPIO control for LED blinking
-- Configured for ESP32-C3 microcontroller
-- VSCode ESP-IDF extension support
-- Minimal bare metal implementation
+- **TRUE Bare Metal** - No FreeRTOS task APIs used
+- **Direct Register Access** - GPIO manipulation via hardware registers
+- **Custom Delay Functions** - CPU cycle counting instead of OS delays
+- **Minimal Code Size** - Optimized configuration with disabled logging
+- **Hardware-Level Control** - Direct memory-mapped I/O
+- VSCode ESP-IDF extension support for building
 
 ## Hardware Requirements
 
 - ESP32-C3 development board
 - USB cable for programming and power
-- LED connected to GPIO8 (or modify `CONFIG_BLINK_GPIO` in sdkconfig.defaults)
+- LED connected to GPIO8 (modify `LED_GPIO` in main/main.c to change)
 
 ## Software Prerequisites
 
@@ -29,15 +31,15 @@ A bare metal LED blink program for ESP32-C3 using ESP-IDF framework in VSCode.
 ```
 esp32c3-bare-metal/
 ├── main/
-│   ├── main.c              # Main application code
+│   ├── main.c              # Bare metal code with direct register access
 │   └── CMakeLists.txt      # Component build configuration
 ├── .vscode/
 │   ├── settings.json       # VSCode ESP-IDF settings
 │   ├── c_cpp_properties.json
 │   └── launch.json         # Debug configuration
 ├── CMakeLists.txt          # Root project configuration
-├── sdkconfig.defaults      # Default ESP32-C3 configuration
-├── Kconfig.projbuild       # Project Kconfig options
+├── sdkconfig.defaults      # Minimal ESP32-C3 configuration
+├── .gitignore
 └── README.md
 ```
 
@@ -79,39 +81,69 @@ idf.py -p /dev/ttyUSB0 flash monitor
 
 ### Changing the LED GPIO
 
-You can modify the GPIO pin used for the LED in two ways:
+Edit the `LED_GPIO` definition in `main/main.c`:
 
-1. **Edit sdkconfig.defaults:**
-   ```
-   CONFIG_BLINK_GPIO=8
-   ```
+```c
+#define LED_GPIO    8  // Change to your desired GPIO pin
+```
 
-2. **Using menuconfig:**
-   ```bash
-   idf.py menuconfig
-   ```
-   Navigate to `ESP32-C3 Bare Metal Configuration` → `Blink GPIO number`
+Supported GPIO pins on ESP32-C3: 0-21 (avoid pins used for flash/USB)
 
 ## Code Explanation
 
-The program demonstrates bare metal programming concepts:
+This program demonstrates **TRUE bare metal programming** without FreeRTOS APIs:
 
-- **GPIO Configuration**: Direct hardware initialization using ESP-IDF drivers
-- **FreeRTOS Tasks**: Uses FreeRTOS for task scheduling
-- **Logging**: ESP_LOGI for debug output
-- **Timing**: vTaskDelay for precise timing control
+### Direct Register Access
+```c
+#define GPIO_ENABLE_REG         (0x60004020)  // GPIO output enable register
+#define GPIO_OUT_REG            (0x60004004)  // GPIO output data register
+#define GPIO_FUNC_OUT_SEL_CFG   (0x60004554) // GPIO function select base
+```
+
+### Key Functions
+
+1. **gpio_init_output()** - Directly writes to hardware registers to configure GPIO as output
+2. **gpio_set_high() / gpio_set_low()** - Direct register manipulation to control pin state
+3. **delay_ms()** - CPU cycle-based timing using RISC-V cycle counter (`esp_rom_get_ccount()`)
+4. **write_reg() / read_reg()** - Volatile pointer access to memory-mapped I/O
+
+### No FreeRTOS Dependencies
+- No `vTaskDelay()` - uses cycle counting
+- No task creation - runs in `app_main()` infinite loop
+- No semaphores, queues, or other RTOS primitives
+- Minimal runtime overhead
 
 ## Serial Monitor Output
 
-Expected output:
+Since logging is disabled for minimal code size, there is **no serial output**. The LED will simply blink on GPIO8:
+- **ON** for 1 second
+- **OFF** for 1 second
+- Repeats indefinitely
+
+To enable debug output, modify `sdkconfig.defaults`:
 ```
-I (xxx) bare-metal: ESP32-C3 Bare Metal Program Starting...
-I (xxx) bare-metal: GPIO 8 configured as output
-I (xxx) bare-metal: LED OFF
-I (xxx) bare-metal: LED ON
-I (xxx) bare-metal: LED OFF
-...
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y  # Change from NONE to INFO
 ```
+
+## Why ESP-IDF if it's Bare Metal?
+
+While this is bare metal code (no FreeRTOS APIs used), we still use ESP-IDF for:
+- **Build system**: CMake configuration and compilation
+- **Bootloader**: Initial chip startup and flash loading
+- **Header files**: Hardware register definitions (`soc/gpio_reg.h`)
+- **ROM functions**: Low-level routines like `esp_rom_get_ccount()`
+- **Flashing tools**: esptool.py for uploading firmware
+
+The actual application code is completely bare metal with direct hardware access.
+
+## Hardware Register Reference
+
+ESP32-C3 GPIO Registers (from memory map at 0x60004000):
+- **0x60004004**: GPIO_OUT_REG - Output data
+- **0x60004020**: GPIO_ENABLE_REG - Output enable
+- **0x60004554**: GPIO_FUNCx_OUT_SEL_CFG - Function selection
+
+See [ESP32-C3 TRM Chapter 5](https://www.espressif.com/sites/default/files/documentation/esp32-c3_technical_reference_manual_en.pdf) for complete register documentation.
 
 ## Troubleshooting
 
@@ -119,6 +151,7 @@ I (xxx) bare-metal: LED OFF
 2. **Flash fails**: Check USB connection and ensure correct port is selected
 3. **No LED blink**: Verify GPIO pin matches your hardware setup
 4. **Permission denied**: On Linux, add user to dialout group: `sudo usermod -a -G dialout $USER`
+5. **LED blinks wrong speed**: Adjust CPU frequency in sdkconfig or modify delay_cycles() multiplier
 
 ## License
 
