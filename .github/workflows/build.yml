@@ -1,0 +1,68 @@
+name: ESP32-C3 Build
+
+on:
+  push:
+    branches: [ main, master, develop, claude/** ]
+  pull_request:
+    branches: [ main, master, develop ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build ESP32-C3 Firmware
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+
+      - name: Set up ESP-IDF
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.1.2
+          target: esp32c3
+          path: '.'
+
+      - name: Build project
+        run: |
+          . $IDF_PATH/export.sh
+          idf.py set-target esp32c3
+          idf.py build
+
+      - name: Show build output size
+        run: |
+          . $IDF_PATH/export.sh
+          idf.py size
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: esp32c3-firmware
+          path: |
+            build/*.bin
+            build/*.elf
+            build/*.map
+            build/bootloader/*.bin
+            build/partition_table/*.bin
+          retention-days: 30
+
+      - name: Upload compilation database
+        uses: actions/upload-artifact@v4
+        with:
+          name: compile-commands
+          path: build/compile_commands.json
+          retention-days: 7
+
+      - name: Build summary
+        run: |
+          echo "### Build Summary :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Target:** ESP32-C3" >> $GITHUB_STEP_SUMMARY
+          echo "**Flash Size:** 16MB" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### Binary Sizes" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          ls -lh build/*.bin 2>/dev/null || echo "No binaries found"
+          echo '```' >> $GITHUB_STEP_SUMMARY

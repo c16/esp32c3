@@ -1,5 +1,8 @@
 # ESP32-C3 TRUE Bare Metal Program
 
+[![ESP32-C3 Build](https://github.com/YOUR_USERNAME/esp32c3/actions/workflows/build.yml/badge.svg)](https://github.com/YOUR_USERNAME/esp32c3/actions/workflows/build.yml)
+[![Code Quality](https://github.com/YOUR_USERNAME/esp32c3/actions/workflows/code-quality.yml/badge.svg)](https://github.com/YOUR_USERNAME/esp32c3/actions/workflows/code-quality.yml)
+
 A completely bare metal LED blink program for ESP32-C3 using direct register access without FreeRTOS.
 
 ## Features
@@ -11,6 +14,7 @@ A completely bare metal LED blink program for ESP32-C3 using direct register acc
 - **LED Status Patterns** - Visual feedback for test results
 - **Custom Partition Table** - 15MB storage partition for testing
 - **Code Quality Tooling** - Clang-tidy integration for static analysis
+- **CI/CD Pipeline** - Automated builds and code quality checks via GitHub Actions
 - **Hardware-Level Control** - Direct memory-mapped I/O
 - VSCode ESP-IDF extension support for building
 
@@ -36,6 +40,10 @@ esp32c3-bare-metal/
 ├── main/
 │   ├── main.c              # Bare metal code with flash testing
 │   └── CMakeLists.txt      # Component build configuration
+├── .github/
+│   └── workflows/
+│       ├── build.yml       # CI/CD: Build firmware
+│       └── code-quality.yml # CI/CD: Code quality checks
 ├── .vscode/
 │   ├── settings.json       # VSCode ESP-IDF settings
 │   ├── c_cpp_properties.json
@@ -280,6 +288,70 @@ Checks: >
 Add your custom check disables after existing ones:
 ```yaml
   -readability-your-check-name
+```
+
+## Continuous Integration (CI/CD)
+
+This project includes GitHub Actions workflows for automated building and code quality checks.
+
+### Workflows
+
+#### 1. Build Workflow (`build.yml`)
+
+Automatically builds the firmware on every push and pull request:
+
+- **Triggers**: Push to main/master/develop/claude/\* branches, pull requests
+- **Actions**:
+  - Sets up ESP-IDF v5.1.2 environment
+  - Builds the project with `idf.py build`
+  - Shows binary size information
+  - Uploads firmware artifacts (.bin, .elf, .map files)
+  - Uploads compile_commands.json for analysis
+
+**Artifacts** (available for 30 days):
+- `esp32c3-firmware` - All compiled binaries
+- `compile-commands` - Compilation database
+
+#### 2. Code Quality Workflow (`code-quality.yml`)
+
+Runs static analysis and formatting checks:
+
+- **Triggers**: Push to main/master/develop/claude/\* branches, pull requests
+- **Actions**:
+  - Runs clang-tidy analysis
+  - Checks file permissions
+  - Checks for trailing whitespace
+  - Generates code statistics
+
+**Artifacts** (available for 30 days):
+- `clang-tidy-results` - Full clang-tidy analysis output
+
+### Viewing Workflow Results
+
+1. Go to the **Actions** tab in your GitHub repository
+2. Select a workflow run to see detailed logs
+3. Download artifacts from the workflow run summary
+4. Check the workflow summary for quick stats and issues
+
+### Local vs CI Builds
+
+The CI environment uses:
+- ESP-IDF v5.1.2
+- Ubuntu latest
+- Standard ESP-IDF build tools
+
+Ensure your local environment matches for consistent results.
+
+### Badge Status
+
+The badges at the top of this README show real-time build and code quality status:
+- 🟢 Green: All checks passing
+- 🔴 Red: Build failed or quality issues found
+- 🟡 Yellow: Workflow running
+
+**Note**: Update the badge URLs in README.md with your GitHub username/repository name:
+```markdown
+[![ESP32-C3 Build](https://github.com/YOUR_USERNAME/YOUR_REPO/actions/workflows/build.yml/badge.svg)](https://github.com/YOUR_USERNAME/YOUR_REPO/actions/workflows/build.yml)
 ```
 
 ## Troubleshooting
