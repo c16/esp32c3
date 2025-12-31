@@ -48,7 +48,7 @@ jobs:
         run: |
           . ~/esp/esp-idf/export.sh
           idf.py set-target esp32c3
-          idf.py build
+          idf.py -v build || (echo "Build failed, checking logs..." && cat build/log/idf_py_stderr_output* 2>/dev/null || true && exit 1)
 
       - name: Show build output size
         run: |
